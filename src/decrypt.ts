@@ -1,13 +1,11 @@
+import { expandKey } from "./expandKey"
 import { multiplyBytes } from "./multiply"
-import { S_BOX, XOB_S } from "./sBox"
+import { XOB_S } from "./sBox"
 
-type Word = [number, number, number, number]
-
-const Nk = 4
 const Nb = 4
 const Nr = 10
 
-export function decrypt(input: number[], key: number[]): number[] {
+export default function decrypt(input: number[], key: number[]): number[] {
 	let output = []
 	for (let i = 0; i < input.length; i += 16) {
 		output.push(...unpadBlock(decryptBlock(input.slice(i, i + 16), key)))
@@ -16,7 +14,7 @@ export function decrypt(input: number[], key: number[]): number[] {
 	return output
 }
 
-export function unpadBlock(input: number[]): number[] {
+function unpadBlock(input: number[]): number[] {
 	let output = [...input]
 	while (output[output.length - 1] === 0x00) {
 		output.pop()
@@ -26,21 +24,10 @@ export function unpadBlock(input: number[]): number[] {
 	return output
 }
 
-export function decryptBlock(input: number[], key: number[]): number[] {
-	let state: Word[] = [
-		[0x00, 0x00, 0x00, 0x00],
-		[0x00, 0x00, 0x00, 0x00],
-		[0x00, 0x00, 0x00, 0x00],
-		[0x00, 0x00, 0x00, 0x00],
-	]
+function decryptBlock(input: number[], key: number[]): number[] {
+	let state: number[] = [...input]
 
 	let w = expandKey(key)
-
-	for (let column = 0; column < Nb; column++) {
-		for (let row = 0; row < 4; row++) {
-			state[column][row] = input[row + 4 * column]
-		}
-	}
 
 	addRoundKey(Nr)
 	unshiftRows(state)
@@ -55,43 +42,36 @@ export function decryptBlock(input: number[], key: number[]): number[] {
 
 	addRoundKey(0)
 
-	const out = new Array(16)
-	for (let column = 0; column < Nb; column++) {
-		for (let row = 0; row < 4; row++) {
-			out[row + 4 * column] = state[column][row]
-		}
-	}
-
-	return out
+	return state
 
 	function addRoundKey(round: number) {
 		for (let i = 0; i < state.length; i++) {
-			state[i] = xorWords(state[i], w[round * Nb + i])
+			state[i] ^= w[round * Nb * 4 + i]
 		}
 	}
 }
 
-export function unshiftRows(state: Word[]): void {
+function unshiftRows(state: number[]): void {
 	for (let row = 1; row < 4; row++) {
 		const shift = 4 - row
 		const temp = new Array(Nb)
 		for (let i = 0; i < Nb; i++) {
-			temp[i] = state[(i + shift) % Nb][row]
+			temp[i] = state[((i + shift) % Nb) * 4 + row]
 		}
 
 		for (let i = 0; i < Nb; i++) {
-			state[i][row] = temp[i]
+			state[i * 4 + row] = temp[i]
 		}
 	}
 }
 
-export function unsubBytes(state: Word[]): void {
-	state.forEach((word, index) => {
-		state[index] = unsubWord(word)
+function unsubBytes(state: number[]): void {
+	state.forEach((byte, index) => {
+		state[index] = XOB_S[byte]
 	})
 }
 
-export function unmixColumns(state: Word[]): void {
+function unmixColumns(state: number[]): void {
 	for (let column = 0; column < Nb; column++) {
 		const newColumn = new Array(4)
 		const multipliers = new Array(Nb).fill(0x01)
@@ -100,67 +80,13 @@ export function unmixColumns(state: Word[]): void {
 		multipliers[2] = 0x0d
 		multipliers[3] = 0x09
 		for (let row = 0; row < 4; row++) {
-			newColumn[row] = state[column]
+			newColumn[row] = state.slice(column * 4, column * 4 + 4)
 				.map((val, index) => multiplyBytes(val, multipliers[index]))
 				.reduce((sum, val) => sum ^ val)
 			multipliers.unshift(multipliers.pop())
 		}
 		for (let row = 0; row < 4; row++) {
-			state[column][row] = newColumn[row]
+			state[column * 4 + row] = newColumn[row]
 		}
 	}
-}
-
-function expandKey(key: number[]): Word[] {
-	let w: Word[] = []
-
-	for (let i = 0; i < Nk; i++) {
-		w.push(key.slice(i * 4, i * 4 + 4) as Word)
-	}
-
-	for (let i = Nk; i < Nb * (Nr + 1); i++) {
-		let temp = w[w.length - 1]
-		if (i % Nk === 0) {
-			temp = rotWord(temp)
-			temp = subWord(temp)
-			const rcon = rCon(i / Nk)
-			temp = xorWords(temp, rcon)
-		}
-
-		w.push(xorWords(w[i - Nk], temp))
-	}
-
-	return w
-}
-
-function unsubWord(word: Word): Word {
-	return word.map(byte => XOB_S[byte]) as Word
-}
-
-function subWord(word: Word): Word {
-	return word.map(byte => S_BOX[byte]) as Word
-}
-
-function rotWord(word: Word): Word {
-	return [word[1], word[2], word[3], word[0]]
-}
-
-function xorWords(a: Word, b: Word): Word {
-	return [
-		a[0] ^ b[0],
-		a[1] ^ b[1],
-		a[2] ^ b[2],
-		a[3] ^ b[3],
-	]
-}
-
-function rCon(i: number): Word {
-	let val = 1
-	for (let j = 0; j < i - 1; j++) {
-		val <<= 1
-		if (val & 0x100) {
-			val ^= 0x11b
-		}
-	}
-	return [val, 0, 0, 0]
 }
