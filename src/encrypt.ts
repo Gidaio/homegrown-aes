@@ -27,20 +27,9 @@ export function padBlock(input: number[]): number[] {
 }
 
 export function encryptBlock(input: number[], key: number[]): number[] {
-	let state: Word[] = [
-		[0x00, 0x00, 0x00, 0x00],
-		[0x00, 0x00, 0x00, 0x00],
-		[0x00, 0x00, 0x00, 0x00],
-		[0x00, 0x00, 0x00, 0x00],
-	]
+	let state: number[] = [...input]
 
 	let w = expandKey(key)
-
-	for (let column = 0; column < Nb; column++) {
-		for (let row = 0; row < 4; row++) {
-			state[column][row] = input[row + 4 * column]
-		}
-	}
 
 	addRoundKey(0)
 
@@ -55,61 +44,54 @@ export function encryptBlock(input: number[], key: number[]): number[] {
 	shiftRows(state)
 	addRoundKey(Nr)
 
-	const out = new Array(16)
-	for (let column = 0; column < Nb; column++) {
-		for (let row = 0; row < 4; row++) {
-			out[row + 4 * column] = state[column][row]
-		}
-	}
-
-	return out
+	return state
 
 	function addRoundKey(round: number) {
 		for (let i = 0; i < state.length; i++) {
-			state[i] = xorWords(state[i], w[round * Nb + i])
+			state[i] ^= w[round * Nb * 4 + i]
 		}
 	}
 }
 
-export function subBytes(state: Word[]): void {
-	state.forEach((word, index) => {
-		state[index] = subWord(word)
+export function subBytes(state: number[]): void {
+	state.forEach((byte, index) => {
+		state[index] = S_BOX[byte]
 	})
 }
 
-export function shiftRows(state: Word[]): void {
+export function shiftRows(state: number[]): void {
 	for (let row = 1; row < 4; row++) {
 		const shift = row
 		const temp = new Array(Nb)
 		for (let i = 0; i < Nb; i++) {
-			temp[i] = state[(i + shift) % Nb][row]
+			temp[i] = state[((i + shift) % Nb) * 4 + row]
 		}
 
 		for (let i = 0; i < Nb; i++) {
-			state[i][row] = temp[i]
+			state[i * 4 + row] = temp[i]
 		}
 	}
 }
 
-export function mixColumns(state: Word[]): void {
+export function mixColumns(state: number[]): void {
 	for (let column = 0; column < Nb; column++) {
 		const newColumn = new Array(4)
 		const multipliers = new Array(Nb).fill(0x01)
 		multipliers[0] = 0x02
 		multipliers[1] = 0x03
 		for (let row = 0; row < 4; row++) {
-			newColumn[row] = state[column]
+			newColumn[row] = state.slice(column * 4, column * 4 + 4)
 				.map((val, index) => multiplyBytes(val, multipliers[index]))
 				.reduce((sum, val) => sum ^ val)
 			multipliers.unshift(multipliers.pop())
 		}
 		for (let row = 0; row < 4; row++) {
-			state[column][row] = newColumn[row]
+			state[column * 4 + row] = newColumn[row]
 		}
 	}
 }
 
-function expandKey(key: number[]): Word[] {
+function expandKey(key: number[]): number[] {
 	let w: Word[] = []
 
 	for (let i = 0; i < Nk; i++) {
@@ -128,7 +110,7 @@ function expandKey(key: number[]): Word[] {
 		w.push(xorWords(w[i - Nk], temp))
 	}
 
-	return w
+	return w.flat()
 }
 
 function subWord(word: Word): Word {
