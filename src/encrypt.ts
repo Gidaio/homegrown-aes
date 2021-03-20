@@ -14,7 +14,7 @@ export default function encrypt(input: number[], key: number[]): number[] {
 	return output
 }
 
-function padBlock(input: number[]): number[] {
+export function padBlock(input: number[]): number[] {
 	let output = [...input]
 	output.push(0x80)
 	while (output.length < 16) {
@@ -24,7 +24,7 @@ function padBlock(input: number[]): number[] {
 	return output
 }
 
-function encryptBlock(input: number[], key: number[]): number[] {
+export function encryptBlock(input: number[], key: number[]): number[] {
 	let state: number[] = [...input]
 
 	let w = expandKey(key)

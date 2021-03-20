@@ -14,7 +14,7 @@ export default function decrypt(input: number[], key: number[]): number[] {
 	return output
 }
 
-function unpadBlock(input: number[]): number[] {
+export function unpadBlock(input: number[]): number[] {
 	let output = [...input]
 	while (output[output.length - 1] === 0x00) {
 		output.pop()
@@ -24,7 +24,7 @@ function unpadBlock(input: number[]): number[] {
 	return output
 }
 
-function decryptBlock(input: number[], key: number[]): number[] {
+export function decryptBlock(input: number[], key: number[]): number[] {
 	let state: number[] = [...input]
 
 	let w = expandKey(key)
